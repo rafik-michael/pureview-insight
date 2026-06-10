@@ -74,23 +74,31 @@ function NovaApp() {
     }
   }
 
-  async function handleVerify() {
+  useEffect(() => {
     if (!result) return;
+    let cancelled = false;
     setVerifying(true);
     setVerifyError(null);
     setVerification(null);
-    try {
-      const v = await verifyAnalysisWithSearch(result);
-      setVerification(v);
-    } catch (err) {
-      console.error(err);
-      setVerifyError(
-        err instanceof Error ? err.message : "Verification failed.",
-      );
-    } finally {
-      setVerifying(false);
-    }
-  }
+    (async () => {
+      try {
+        const v = await verifyAnalysisWithSearch(result);
+        if (!cancelled) setVerification(v);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) {
+          setVerifyError(
+            err instanceof Error ? err.message : "Verification failed.",
+          );
+        }
+      } finally {
+        if (!cancelled) setVerifying(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [result]);
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
