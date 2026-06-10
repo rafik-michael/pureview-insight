@@ -3,7 +3,7 @@
 // site remains fully static (deployable to GitHub Pages / Vercel / Netlify).
 
 const GEMINI_API_KEY = "AQ.Ab8RN6I49BUobZl0btxChKYNTBbngA2jxDWgpPrn5lVoGC-Lkg";
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-3.5-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
 const SYSTEM_PROMPT = `Role & Identity
