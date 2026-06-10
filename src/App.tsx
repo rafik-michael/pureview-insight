@@ -240,7 +240,6 @@ function NovaApp() {
             verifying={verifying}
             verification={verification}
             error={verifyError}
-            onVerify={handleVerify}
           />
         )}
 
