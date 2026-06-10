@@ -3,11 +3,14 @@ import {
   AlertTriangle,
   Camera,
   CheckCircle2,
+  ExternalLink,
   HelpCircle,
   Image as ImageIcon,
   Loader2,
+  Search,
   ScanLine,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Upload,
   XCircle,
@@ -15,7 +18,9 @@ import {
 import {
   analyzeProductImage,
   fileToBase64,
+  verifyAnalysisWithSearch,
   type AnalysisResult,
+  type VerificationResult,
 } from "@/lib/gemini";
 import logo from "@/assets/logo.png";
 
@@ -40,12 +45,17 @@ function NovaApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verification, setVerification] = useState<VerificationResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
     setError(null);
     setResult(null);
+    setVerification(null);
+    setVerifyError(null);
     setPreview(URL.createObjectURL(file));
     setLoading(true);
     try {
@@ -64,6 +74,24 @@ function NovaApp() {
     }
   }
 
+  async function handleVerify() {
+    if (!result) return;
+    setVerifying(true);
+    setVerifyError(null);
+    setVerification(null);
+    try {
+      const v = await verifyAnalysisWithSearch(result);
+      setVerification(v);
+    } catch (err) {
+      console.error(err);
+      setVerifyError(
+        err instanceof Error ? err.message : "Verification failed.",
+      );
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) void handleFile(file);
@@ -74,6 +102,8 @@ function NovaApp() {
     setPreview(null);
     setResult(null);
     setError(null);
+    setVerification(null);
+    setVerifyError(null);
   }
 
   return (
@@ -195,6 +225,15 @@ function NovaApp() {
               {result && <Summary result={result} />}
             </div>
           </section>
+        )}
+
+        {result && (
+          <VerifyPanel
+            verifying={verifying}
+            verification={verification}
+            error={verifyError}
+            onVerify={handleVerify}
+          />
         )}
 
         {result && <Details result={result} />}
@@ -488,6 +527,115 @@ function HazardBadge({ score }: { score: number }) {
     >
       {s}/10
     </span>
+  );
+}
+
+function verdictTone(verdict: string): string {
+  const v = verdict?.toLowerCase() ?? "";
+  if (v.includes("confirm") && !v.includes("partial")) return "text-success border-success/40 bg-success/10";
+  if (v.includes("partial") || v.includes("mostly")) return "text-primary border-primary/40 bg-primary/10";
+  if (v.includes("disput")) return "text-destructive border-destructive/40 bg-destructive/10";
+  return "text-warning border-warning/40 bg-warning/10";
+}
+
+function VerifyPanel({
+  verifying,
+  verification,
+  error,
+  onVerify,
+}: {
+  verifying: boolean;
+  verification: VerificationResult | null;
+  error: string | null;
+  onVerify: () => void;
+}) {
+  return (
+    <section className="mt-2 mb-6">
+      <div className="rounded-2xl border border-border/60 bg-card/40 p-5 backdrop-blur-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <h3 className="text-base font-semibold">Fact-check with Google Search</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onVerify}
+            disabled={verifying}
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-4 py-2 text-sm font-medium text-primary-foreground shadow-md shadow-primary/20 transition hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {verifying ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Search className="h-4 w-4" />
+            )}
+            {verifying ? "Verifying…" : verification ? "Re-verify" : "Verify answer"}
+          </button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">
+          Cross-checks the AI analysis against live Google Search results from regulatory and scientific sources.
+        </p>
+
+        {error && (
+          <div className="mt-4 flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4">
+            <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <p className="text-sm text-muted-foreground">{error}</p>
+          </div>
+        )}
+
+        {verification && (
+          <div className="mt-4 space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wider ${verdictTone(verification.verdict)}`}>
+                {verification.verdict}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Confidence:{" "}
+                <span className="font-semibold text-foreground">{verification.confidence}%</span>
+              </span>
+            </div>
+
+            {verification.summary && (
+              <p className="text-sm leading-relaxed text-foreground/90">{verification.summary}</p>
+            )}
+
+            {verification.corrections.length > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Corrections & nuances</p>
+                <ul className="mt-2 space-y-1.5">
+                  {verification.corrections.map((c, i) => (
+                    <li key={i} className="flex gap-2 text-sm text-foreground/90">
+                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-warning" />
+                      <span>{c}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {verification.sources.length > 0 && (
+              <div>
+                <p className="text-xs uppercase tracking-wider text-muted-foreground">Sources</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {verification.sources.map((s, i) => (
+                    <a
+                      key={i}
+                      href={s.uri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full border border-border bg-secondary/60 px-3 py-1 text-xs text-foreground/90 transition hover:bg-secondary"
+                      title={s.title}
+                    >
+                      <ExternalLink className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{s.title}</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
