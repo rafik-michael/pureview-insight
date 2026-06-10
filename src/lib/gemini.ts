@@ -189,3 +189,92 @@ export function fileToBase64(file: File): Promise<{ data: string; mimeType: stri
     reader.readAsDataURL(file);
   });
 }
+
+// =================== Google Search verification ===================
+
+export interface VerificationSource {
+  title: string;
+  uri: string;
+}
+
+export interface VerificationResult {
+  verdict: string;
+  confidence: number;
+  summary: string;
+  corrections: string[];
+  sources: VerificationSource[];
+}
+
+const VERIFY_SYSTEM_PROMPT = `You are an independent scientific fact-checker. You will receive a JSON analysis of a product's ingredients and marketing claims produced by another AI. Your job: use Google Search to verify the key claims (ingredient hazard levels, regulatory status, alleged greenwashing) against reputable sources (EWG, EU CosIng, FDA, EFSA, REACH, peer-reviewed literature).
+
+Return ONLY a raw JSON object (no markdown, no code fences) with this exact shape:
+{
+  "verdict": "Confirmed" | "Mostly confirmed" | "Partially confirmed" | "Disputed" | "Unverifiable",
+  "confidence": <integer 0-100>,
+  "summary": "<2-4 sentence overall fact-check summary, in the SAME language used in the original analysis values>",
+  "corrections": ["<short bullet describing any inaccuracies or missing nuance, same language>"]
+}
+
+Be strict and concise. If a hazard score seems exaggerated or understated based on the sources you find, list it under corrections.`;
+
+export async function verifyAnalysisWithSearch(
+  analysis: AnalysisResult,
+): Promise<VerificationResult> {
+  const body = {
+    system_instruction: { parts: [{ text: VERIFY_SYSTEM_PROMPT }] },
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              "Fact-check the following product analysis JSON using Google Search and return the verification JSON object:\n\n" +
+              JSON.stringify(analysis),
+          },
+        ],
+      },
+    ],
+    tools: [{ google_search: {} }],
+    generationConfig: { temperature: 0.1 },
+  };
+
+  const res = await fetch(GEMINI_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gemini verification error (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  const candidate = data?.candidates?.[0];
+  const text: string =
+    candidate?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
+
+  if (!text) throw new Error("Empty verification response from Gemini.");
+
+  let parsed: Partial<VerificationResult> = {};
+  try {
+    parsed = extractJson(text) as Partial<VerificationResult>;
+  } catch {
+    parsed = { verdict: "Unverifiable", confidence: 0, summary: text, corrections: [] };
+  }
+
+  const sources: VerificationSource[] = [];
+  const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
+  for (const c of chunks) {
+    const web = c?.web;
+    if (web?.uri) sources.push({ title: web.title || web.uri, uri: web.uri });
+  }
+
+  return {
+    verdict: parsed.verdict ?? "Unverifiable",
+    confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0,
+    summary: parsed.summary ?? "",
+    corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [],
+    sources,
+  };
+}
