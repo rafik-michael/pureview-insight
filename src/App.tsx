@@ -3,11 +3,14 @@ import {
   AlertTriangle,
   Camera,
   CheckCircle2,
+  ExternalLink,
   HelpCircle,
   Image as ImageIcon,
   Loader2,
+  Search,
   ScanLine,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Upload,
   XCircle,
@@ -15,7 +18,9 @@ import {
 import {
   analyzeProductImage,
   fileToBase64,
+  verifyAnalysisWithSearch,
   type AnalysisResult,
+  type VerificationResult,
 } from "@/lib/gemini";
 import logo from "@/assets/logo.png";
 
