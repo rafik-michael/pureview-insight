@@ -549,12 +549,10 @@ function VerifyPanel({
   verifying,
   verification,
   error,
-  onVerify,
 }: {
   verifying: boolean;
   verification: VerificationResult | null;
   error: string | null;
-  onVerify: () => void;
 }) {
   return (
     <section className="mt-2 mb-6">
@@ -564,23 +562,22 @@ function VerifyPanel({
             <ShieldCheck className="h-5 w-5 text-primary" />
             <h3 className="text-base font-semibold">Fact-check with Google Search</h3>
           </div>
-          <button
-            type="button"
-            onClick={onVerify}
-            disabled={verifying}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent px-4 py-2 text-sm font-medium text-primary-foreground shadow-md shadow-primary/20 transition hover:opacity-95 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {verifying ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Search className="h-4 w-4" />
-            )}
-            {verifying ? "Verifying…" : verification ? "Re-verify" : "Verify answer"}
-          </button>
+          {verifying ? (
+            <span className="flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Verifying…
+            </span>
+          ) : verification ? (
+            <span className="flex items-center gap-2 rounded-full border border-success/40 bg-success/10 px-3 py-1 text-xs text-success">
+              <Search className="h-3.5 w-3.5" />
+              Verified
+            </span>
+          ) : null}
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Cross-checks the AI analysis against live Google Search results from regulatory and scientific sources.
+          Automatically cross-checks the AI analysis against live Google Search results from regulatory and scientific sources.
         </p>
+
 
         {error && (
           <div className="mt-4 flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4">
