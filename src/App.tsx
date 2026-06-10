@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -18,20 +17,6 @@ import {
   fileToBase64,
   type AnalysisResult,
 } from "@/lib/gemini";
-
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "NovaApp — Product Component Analyzer" },
-      {
-        name: "description",
-        content:
-          "Snap a product photo and instantly see ingredient hazards, beneficial actives, and deceptive marketing claims.",
-      },
-    ],
-  }),
-  component: NovaApp,
-});
 
 function gradeColor(grade: string): string {
   const g = grade?.trim().toUpperCase().charAt(0);
@@ -502,3 +487,5 @@ function HazardBadge({ score }: { score: number }) {
     </span>
   );
 }
+
+export default NovaApp;
