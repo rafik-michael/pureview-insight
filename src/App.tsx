@@ -17,6 +17,8 @@ import {
   fileToBase64,
   type AnalysisResult,
 } from "@/lib/gemini";
+import logo from "@/assets/logo.png";
+
 
 function gradeColor(grade: string): string {
   const g = grade?.trim().toUpperCase().charAt(0);
@@ -80,13 +82,14 @@ function NovaApp() {
         {/* Header */}
         <header className="mb-10 flex flex-col items-center text-center">
           <div className="mb-4 flex items-center gap-3">
-            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent shadow-[0_0_30px_-5px_oklch(0.78_0.14_195/0.6)]">
-              <ScanLine className="h-6 w-6 text-primary-foreground" />
+            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-secondary/80 to-background ring-1 ring-primary/30 shadow-[0_0_30px_-5px_oklch(0.78_0.14_195/0.6)]">
+              <img src={logo} alt="NovaApp logo" width={56} height={56} className="h-10 w-10 object-contain drop-shadow-[0_0_8px_oklch(0.78_0.14_195/0.6)]" />
             </div>
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
               Nova<span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">App</span>
             </h1>
           </div>
+
           <p className="max-w-xl text-sm text-muted-foreground sm:text-base">
             Snap any food or cosmetic product and get an instant
             scientific breakdown of its ingredients, hazards, and marketing
