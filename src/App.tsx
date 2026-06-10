@@ -227,6 +227,15 @@ function NovaApp() {
           </section>
         )}
 
+        {result && (
+          <VerifyPanel
+            verifying={verifying}
+            verification={verification}
+            error={verifyError}
+            onVerify={handleVerify}
+          />
+        )}
+
         {result && <Details result={result} />}
 
         <footer className="mt-16 text-center text-xs text-muted-foreground">
