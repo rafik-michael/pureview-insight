@@ -7,7 +7,7 @@ import tsconfigPaths from "vite-tsconfig-paths";
 // `base: "./"` makes the built site work when hosted on a subpath
 // (GitHub Pages project sites) as well as root-level (Vercel / Netlify).
 export default defineConfig({
-  base: "./",
+  base: "/",
   plugins: [react(), tailwindcss(), tsconfigPaths()],
   server: {
     host: "::",
