@@ -45,12 +45,22 @@ function NovaApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+function NovaApp() {
+  const [preview, setPreview] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [verification, setVerification] = useState<VerificationResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
     setError(null);
     setResult(null);
+    setVerification(null);
+    setVerifyError(null);
     setPreview(URL.createObjectURL(file));
     setLoading(true);
     try {
@@ -69,6 +79,24 @@ function NovaApp() {
     }
   }
 
+  async function handleVerify() {
+    if (!result) return;
+    setVerifying(true);
+    setVerifyError(null);
+    setVerification(null);
+    try {
+      const v = await verifyAnalysisWithSearch(result);
+      setVerification(v);
+    } catch (err) {
+      console.error(err);
+      setVerifyError(
+        err instanceof Error ? err.message : "Verification failed.",
+      );
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) void handleFile(file);
@@ -79,6 +107,8 @@ function NovaApp() {
     setPreview(null);
     setResult(null);
     setError(null);
+    setVerification(null);
+    setVerifyError(null);
   }
 
   return (
