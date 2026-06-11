@@ -1,313 +1,115 @@
 // Gemini API client for NovaApp product analysis.
-// Optimized for secure rotating environment variables on Vercel.
+// Optimized for secure rotating environment variables on Vercel with auto-retry.
+// Features: Dynamic language matching & Live Google Search Grounding for verification.
+// Pure English Version.
 
 const GEMINI_MODEL = "gemini-2.5-flash";
 
-// دالة ذكية لتجربة المفاتيح الثلاثة بالتناوب عند حدوث ضغط أو انتهاء الحصة
+// Helper function to pause execution (sleep) for a given number of milliseconds
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Smart function to try keys sequentially with an auto-retry mechanism for status 503
 async function fetchWithKeyRotation(body: any): Promise<Response> {
-  // جلب المفاتيح السرية من بيئة التشغيل الآمنة في فيرسيل
- // جلب المفتاح الرئيسي المباشر والمفتاح الاحتياطي إن وجد
+  // Fetching main and backup keys from Vercel environment variables
   const keys = [
     import.meta.env.VITE_GEMINI_API_KEY,
-    import.meta.env.VITE_GEMINI_KEY_1
-  ].filter(Boolean);
+    import.meta.env.VITE_GEMINI_KEY_1,
+    import.meta.env.VITE_GEMINI_KEY_2
+  ].filter(Boolean); // Filter out undefined keys
+
   if (keys.length === 0) {
     throw new Error("No Gemini API keys found in Environment Variables.");
   }
 
   let lastError: any = null;
+  const maxRetries = 2; // Number of retries per key if the server is busy
 
-  // المحاولة عبر المفاتيح المتاحة بالترتيب
+  // Iterate through available keys
   for (let i = 0; i < keys.length; i++) {
     const currentKey = keys[i];
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${currentKey}`;
     
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+    // Retry loop for the current key in case of temporary Google server errors (like 503)
+    for (let retry = 0; retry <= maxRetries; retry++) {
+      try {
+        if (retry > 0) {
+          console.log(`Retry #${retry} for Key ${i + 1} after server pressure...`);
+          await sleep(2000); // Wait for 2 seconds to allow the server to recover
+        }
 
-      // إذا انتهت الحصة (كود 429) أو حدث خطأ في السيرفر (5xx)، ننتقل للمفتاح التالي
-      if (res.status === 429 || res.status >= 500) {
-        console.warn(`Key ${i + 1} failed with status ${res.status}. Trying next key...`);
-        lastError = `Status ${res.status}`;
-        continue; 
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        // If the server is overloaded (503), retry the same key first
+        if (res.status === 503 && retry < maxRetries) {
+          console.warn(`Google server is busy (503) for Key ${i + 1}. Retrying shortly...`);
+          lastError = `Status 503 (Service Unavailable)`;
+          continue; 
+        }
+
+        // If quota is exceeded (429) or internal error occurs (5xx except 503), switch to the next key
+        if (res.status === 429 || res.status >= 500) {
+          console.warn(`Key ${i + 1} failed with status ${res.status}. Moving to next key...`);
+          lastError = `Status ${res.status}`;
+          break; // Break the retry loop to move to the next key (i)
+        }
+
+        // If response is successful or a standard user error occurs (like 400), return the response
+        return res;
+      } catch (err) {
+        console.warn(`Connection failed with Key ${i + 1} on attempt ${retry + 1}.`);
+        lastError = err;
+        if (retry === maxRetries) break; // Break if max retries reached for this key
       }
-
-      // إذا كانت الاستجابة سليمة أو خطأ مستخدم آخر (مثل 400)، نعيد النتيجة مباشرة
-      return res;
-    } catch (err) {
-      console.warn(`Connection failed with Key ${i + 1}. Trying next key...`);
-      lastError = err;
     }
   }
 
   throw new Error(`All configured Gemini API keys failed. Last error: ${lastError}`);
 }
 
-const SYSTEM_PROMPT = `Role & Identity
+// Core function to analyze product ingredients (With Dynamic Language & Live Google Search)
+export async function analyzeProductIngredients(imageBase64: string): Promise<string> {
+  // Advanced prompt instructing Gemini to dynamically match the language of the image text
+  const prompt = "Analyze this product image. Identify all ingredients, list chemical/health hazards with scientific severity, and audit any marketing claims. CRITICAL: Detect the language of the text on the product packaging, and write your entire analysis and response strictly in that same language. (e.g., if the packaging text is in Arabic, respond in Arabic; if English, respond in English; if Chinese, respond in Chinese, etc.). Structure your response beautifully.";
 
-You are a high-precision Scientific Component Analyst and Regulatory Compliance Auditor. Your expertise lies in toxicology, biochemistry, and consumer protection law. Your purpose is to ingest product images, extract ingredient lists via OCR, cross-reference them with global scientific databases (EWG, EU Cosmetic Regulations, FDA, REACH), and detect deceptive marketing tactics.
-
-Operational Protocol
-
-Extraction: Identify and extract all ingredients using International Nomenclature Cosmetic Ingredient (INCI) or equivalent standards.
-
-Scientific Verification: Cross-reference each ingredient against toxicological databases to identify endocrine disruptors, carcinogens, allergens, and beneficial bio-actives.
-
-Marketing Audit: Scan the product packaging for claims (e.g., "Natural," "Chemical-Free," "Organic"). Compare these claims against the actual chemical composition to identify "Greenwashing" or "Cleanwashing."
-
-Scoring Logic: Apply the Product Integrity Grade (PIG):
-- Base Score: 100.
-- Deduct 10 points for every high-hazard ingredient (Hazard Score 7-10).
-- Deduct 5 points for every medium-hazard ingredient (Hazard Score 3-6).
-- Deduct 15 points for every deceptive marketing claim (False claim/Greenwashing).
-- Add 2 points for every scientifically proven high-benefit ingredient.
-
-Output Constraints
-- Format: Return ONLY a raw JSON object. No conversational text, no markdown headers, and no apologies.
-- Language/Localization: Detect the dominant language of the product packaging in the image. ALL string values (descriptions, risks, benefits, summaries) MUST be written in that detected language, at a professional / expert register. If the packaging is in Arabic, respond in formal Arabic (العربية الفصحى). If it is in English, respond in professional English. If it is in Chinese, respond in Chinese. And so on for any language. JSON keys remain in English regardless.
-- Strictness: If a component is banned in the EU but allowed elsewhere, it must be flagged as a high risk.
-
-JSON Schema Structure (follow exactly; keys are English, values follow the language rule above):
-
-{
-  "analysis_metadata": {
-    "product_name_ar": "string",
-    "category_ar": "string",
-    "safety_score": "float (0-100)",
-    "integrity_grade": "string (A+, B, C, F, etc.)"
-  },
-  "detailed_components": {
-    "positive": [
-      { "name_en": "string", "name_ar": "string", "scientific_benefit_ar": "string", "evidence_level": "string" }
-    ],
-    "negative": [
-      { "name_en": "string", "name_ar": "string", "health_risk_ar": "string", "hazard_score": "int (1-10)", "regulatory_status_ar": "string" }
-    ],
-    "questionable": [
-      { "name_en": "string", "name_ar": "string", "reason_for_concern_ar": "string" }
-    ]
-  },
-  "marketing_integrity_audit": {
-    "detected_claims_ar": ["string"],
-    "deceptive_practices": [
-      { "claim_ar": "string", "scientific_reality_ar": "string", "tactic_type_en": "Greenwashing/Cleanwashing/Hidden Trade-off" }
-    ],
-    "marketing_honesty_rating_ar": "string"
-  },
-  "final_expert_verdict_ar": "string"
-}
-
-Note: the *_ar suffix on keys is historical — fill the values in the language detected from the product image, not necessarily Arabic.
-
-If the image clearly does not show a product with an ingredient list or packaging text, return a JSON object with empty arrays and a final_expert_verdict_ar value explaining (in English) that no product could be analyzed.`;
-
-export interface AnalysisResult {
-  analysis_metadata: {
-    product_name_ar: string;
-    category_ar: string;
-    safety_score: number;
-    integrity_grade: string;
-  };
-  detailed_components: {
-    positive: Array<{
-      name_en: string;
-      name_ar: string;
-      scientific_benefit_ar: string;
-      evidence_level: string;
-    }>;
-    negative: Array<{
-      name_en: string;
-      name_ar: string;
-      health_risk_ar: string;
-      hazard_score: number;
-      regulatory_status_ar: string;
-    }>;
-    questionable: Array<{
-      name_en: string;
-      name_ar: string;
-      reason_for_concern_ar: string;
-    }>;
-  };
-  marketing_integrity_audit: {
-    detected_claims_ar: string[];
-    deceptive_practices: Array<{
-      claim_ar: string;
-      scientific_reality_ar: string;
-      tactic_type_en: string;
-    }>;
-    marketing_honesty_rating_ar: string;
-  };
-  final_expert_verdict_ar: string;
-}
-
-function extractJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    const cleaned = text.replace(/```json|```/gi, "").trim();
-    try {
-      return JSON.parse(cleaned);
-    } catch {
-      const first = cleaned.indexOf("{");
-      const last = cleaned.lastIndexOf("}");
-      if (first !== -1 && last !== -1 && last > first) {
-        return JSON.parse(cleaned.slice(first, last + 1));
+  const requestBody = {
+    contents: [
+      {
+        parts: [
+          { text: prompt },
+          {
+            inlineData: {
+              mimeType: "image/jpeg",
+              data: imageBase64
+            }
+          }
+        ]
       }
-      throw new Error("Failed to extract JSON from Gemini response.");
-    }
-  }
-}
-
-export async function analyzeProductImage(
-  base64Data: string,
-  mimeType: string,
-): Promise<AnalysisResult> {
-  const body = {
-    system_instruction: {
-      parts: [{ text: SYSTEM_PROMPT }],
-    },
-    contents: [
-      {
-        role: "user",
-        parts: [
-          {
-            inline_data: {
-              mime_type: mimeType,
-              data: base64Data,
-            },
-          },
-          {
-            text: "Analyze this product image and return the JSON object as specified.",
-          },
-        ],
-      },
     ],
-    generationConfig: {
-      temperature: 0.2,
-      response_mime_type: "application/json",
-    },
-  };
-
-  // استدعاء الدالة الدوارة الجديدة بدلاً من fetch المباشر القديم
-  const res = await fetchWithKeyRotation(body);
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini API error (${res.status}): ${errText}`);
-  }
-
-  const data = await res.json();
-  const text: string =
-    data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ??
-    "";
-
-  if (!text) {
-    throw new Error("Empty response from Gemini.");
-  }
-
-  return extractJson(text) as AnalysisResult;
-}
-
-export function fileToBase64(file: File): Promise<{ data: string; mimeType: string }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const [meta, b64] = result.split(",");
-      const mimeMatch = /data:(.*?);base64/.exec(meta);
-      resolve({ data: b64, mimeType: mimeMatch?.[1] ?? file.type ?? "image/jpeg" });
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-// =================== Google Search verification ===================
-
-export interface VerificationSource {
-  title: string;
-  uri: string;
-}
-
-export interface VerificationResult {
-  verdict: string;
-  confidence: number;
-  summary: string;
-  corrections: string[];
-  sources: VerificationSource[];
-}
-
-const VERIFY_SYSTEM_PROMPT = `You are an independent scientific fact-checker. You will receive a JSON analysis of a product's ingredients and marketing claims produced by another AI. Your job: use Google Search to verify the key claims (ingredient hazard levels, regulatory status, alleged greenwashing) against reputable sources (EWG, EU CosIng, FDA, EFSA, REACH, peer-reviewed literature).
-
-Return ONLY a raw JSON object (no markdown, no code fences) with this exact shape:
-{
-  "verdict": "Confirmed" | "Mostly confirmed" | "Partially confirmed" | "Disputed" | "Unverifiable",
-  "confidence": <integer 0-100>,
-  "summary": "<2-4 sentence overall fact-check summary, in the SAME language used in the original analysis values>",
-  "corrections": ["<short bullet describing any inaccuracies or missing nuance, same language>"]
-}
-
-Be strict and concise. If a hazard score seems exaggerated or understated based on the sources you find, list it under corrections.`;
-
-export async function verifyAnalysisWithSearch(
-  analysis: AnalysisResult,
-): Promise<VerificationResult> {
-  const body = {
-    system_instruction: { parts: [{ text: VERIFY_SYSTEM_PROMPT }] },
-    contents: [
+    // Activating Live Google Search Grounding for automatic verification and source linking
+    tools: [
       {
-        role: "user",
-        parts: [
-          {
-            text:
-              "Fact-check the following product analysis JSON using Google Search and return the verification JSON object:\n\n" +
-              JSON.stringify(analysis),
-          },
-        ],
-      },
-    ],
-    tools: [{ google_search: {} }],
-    generationConfig: { temperature: 0.1 },
+        googleSearch: {}
+      }
+    ]
   };
 
-  // استدعاء الدالة الدوارة الجديدة هنا أيضاً لضمان حماية التبادل المالي للمفاتيح أثناء الفحص المتقدم
-  const res = await fetchWithKeyRotation(body);
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Gemini verification error (${res.status}): ${errText}`);
+  const response = await fetchWithKeyRotation(requestBody);
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
   }
 
-  const data = await res.json();
-  const candidate = data?.candidates?.[0];
-  const text: string =
-    candidate?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "";
-
-  if (!text) throw new Error("Empty verification response from Gemini.");
-
-  let parsed: Partial<VerificationResult> = {};
-  try {
-    parsed = extractJson(text) as Partial<VerificationResult>;
-  } catch {
-    parsed = { verdict: "Unverifiable", confidence: 0, summary: text, corrections: [] };
+  const data = await response.json();
+  const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  
+  if (!textResult) {
+    throw new Error("Empty or invalid response structure received from Gemini API.");
   }
 
-  const sources: VerificationSource[] = [];
-  const chunks = candidate?.groundingMetadata?.groundingChunks ?? [];
-  for (const c of chunks) {
-    const web = c?.web;
-    if (web?.uri) sources.push({ title: web.title || web.uri, uri: web.uri });
-  }
-
-  return {
-    verdict: parsed.verdict ?? "Unverifiable",
-    confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0,
-    summary: parsed.summary ?? "",
-    corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [],
-    sources,
-  };
+  return textResult;
 }
