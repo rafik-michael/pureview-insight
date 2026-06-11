@@ -119,6 +119,11 @@ export async function analyzeProductImage(imageBase64: string): Promise<string> 
   return analyzeProductIngredients(imageBase64);
 }
 
+// Dummy function to satisfy the old verifyAnalysisWithSearch export without breaking the build
+export async function verifyAnalysisWithSearch(analysisText: string): Promise<any> {
+  return { success: true, message: "Search integrated directly into core analysis." };
+}
+
 // Helper function required by App.tsx to convert file objects to base64 strings
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
