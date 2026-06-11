@@ -1,7 +1,14 @@
+// Gemini API client for NovaApp product analysis.
+// Optimized for secure rotating environment variables on Vercel with auto-retry.
+// Features: Safe input handling & Stable Vision Analysis via Gemini 2.5 Flash.
+// Pure English Version.
+
 const GEMINI_MODEL = "gemini-2.5-flash";
 
+// Helper function to pause execution (sleep) for a given number of milliseconds
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Smart function to try keys sequentially with an auto-retry mechanism for status 503
 async function fetchWithKeyRotation(body: any): Promise<Response> {
   const keys = [
     import.meta.env.VITE_GEMINI_API_KEY,
@@ -53,8 +60,14 @@ async function fetchWithKeyRotation(body: any): Promise<Response> {
   throw new Error(`All configured Gemini API keys failed. Last error: ${lastError}`);
 }
 
+// Core function to analyze product ingredients (With Safe Type Checking)
 export async function analyzeProductIngredients(imageBase64: string): Promise<string> {
-  // تصفية وحماية النص: لو كان يحتوي على صيغة data:image المسببة للخطأ 400 يتم تنظيفها فوراً
+  // Safe validation: Ensure imageBase64 is defined and is a string before calling string methods
+  if (!imageBase64 || typeof imageBase64 !== 'string') {
+    throw new Error("Invalid or empty image data received for analysis.");
+  }
+
+  // Safe cleaning of data URL metadata if present
   let cleanBase64 = imageBase64;
   if (cleanBase64.includes(',')) {
     cleanBase64 = cleanBase64.split(',')[1];
@@ -95,14 +108,17 @@ export async function analyzeProductIngredients(imageBase64: string): Promise<st
   return textResult;
 }
 
+// Alias function to support App.tsx calling the old function name
 export async function analyzeProductImage(imageBase64: string): Promise<string> {
   return analyzeProductIngredients(imageBase64);
 }
 
+// Dummy function to satisfy the old verifyAnalysisWithSearch export without breaking the build
 export async function verifyAnalysisWithSearch(analysisText: string): Promise<any> {
   return { success: true, message: "Vision mode uses Gemini stable scientific knowledge bank." };
 }
 
+// Helper function required by App.tsx to convert file objects to base64 strings
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
