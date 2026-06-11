@@ -3,7 +3,7 @@
 // Features: Dynamic language matching & Live Google Search Grounding for verification.
 // Pure English Version.
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODEL = "gemini-3.5-flash";
 
 // Helper function to pause execution (sleep) for a given number of milliseconds
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
