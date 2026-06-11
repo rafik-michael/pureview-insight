@@ -3,8 +3,8 @@
 // site remains fully static (deployable to GitHub Pages / Vercel / Netlify).
 
 const key1 = import.meta.env.VITE_GEMINI_KEY_1;
-const key1 = import.meta.env.VITE_GEMINI_KEY_2;
-const key1 = import.meta.env.VITE_GEMINI_KEY_3;
+const key2 = import.meta.env.VITE_GEMINI_KEY_2;
+const key3 = import.meta.env.VITE_GEMINI_KEY_3;
 
 const keys = [key1, key2, key3].filter(Boolean);
 const GEMINI_MODEL = "gemini-3.5-flash";
