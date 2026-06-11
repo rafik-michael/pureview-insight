@@ -1,10 +1,52 @@
 // Gemini API client for NovaApp product analysis.
-// NOTE: The API key is included here per the user's explicit request so the
-// site remains fully static (deployable to GitHub Pages / Vercel / Netlify).
+// Optimized for secure rotating environment variables on Vercel.
 
-const GEMINI_API_KEY = "AQ.Ab8RN6I49BUobZl0btxChKYNTBbngA2jxDWgpPrn5lVoGC-Lkg";
 const GEMINI_MODEL = "gemini-3.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+
+// دالة ذكية لتجربة المفاتيح الثلاثة بالتناوب عند حدوث ضغط أو انتهاء الحصة
+async function fetchWithKeyRotation(body: any): Promise<Response> {
+  // جلب المفاتيح السرية من بيئة التشغيل الآمنة في فيرسيل
+  const keys = [
+    import.meta.env.VITE_GEMINI_KEY_1,
+    import.meta.env.VITE_GEMINI_KEY_2,
+    import.meta.env.VITE_GEMINI_KEY_3
+  ].filter(Boolean); // ترشيح المفاتيح الموجودة فقط
+
+  if (keys.length === 0) {
+    throw new Error("No Gemini API keys found in Environment Variables.");
+  }
+
+  let lastError: any = null;
+
+  // المحاولة عبر المفاتيح المتاحة بالترتيب
+  for (let i = 0; i < keys.length; i++) {
+    const currentKey = keys[i];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${currentKey}`;
+    
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      // إذا انتهت الحصة (كود 429) أو حدث خطأ في السيرفر (5xx)، ننتقل للمفتاح التالي
+      if (res.status === 429 || res.status >= 500) {
+        console.warn(`Key ${i + 1} failed with status ${res.status}. Trying next key...`);
+        lastError = `Status ${res.status}`;
+        continue; 
+      }
+
+      // إذا كانت الاستجابة سليمة أو خطأ مستخدم آخر (مثل 400)، نعيد النتيجة مباشرة
+      return res;
+    } catch (err) {
+      console.warn(`Connection failed with Key ${i + 1}. Trying next key...`);
+      lastError = err;
+    }
+  }
+
+  throw new Error(`All configured Gemini API keys failed. Last error: ${lastError}`);
+}
 
 const SYSTEM_PROMPT = `Role & Identity
 
@@ -104,11 +146,9 @@ export interface AnalysisResult {
 }
 
 function extractJson(text: string): unknown {
-  // Try direct parse first.
   try {
     return JSON.parse(text);
   } catch {
-    // Strip code fences then find first { ... } block.
     const cleaned = text.replace(/```json|```/gi, "").trim();
     try {
       return JSON.parse(cleaned);
@@ -153,11 +193,8 @@ export async function analyzeProductImage(
     },
   };
 
-  const res = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  // استدعاء الدالة الدوارة الجديدة بدلاً من fetch المباشر القديم
+  const res = await fetchWithKeyRotation(body);
 
   if (!res.ok) {
     const errText = await res.text();
@@ -238,11 +275,8 @@ export async function verifyAnalysisWithSearch(
     generationConfig: { temperature: 0.1 },
   };
 
-  const res = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  // استدعاء الدالة الدوارة الجديدة هنا أيضاً لضمان حماية التبادل المالي للمفاتيح أثناء الفحص المتقدم
+  const res = await fetchWithKeyRotation(body);
 
   if (!res.ok) {
     const errText = await res.text();
