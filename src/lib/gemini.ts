@@ -193,28 +193,90 @@ export function fileToBase64(file: File): Promise<{ data: string; mimeType: stri
 // =================== Google Search verification ===================
 
 export interface VerificationSource {
-  title: string;
-  uri: string;
+  title: string;
+  uri: string;
 }
 
 export interface VerificationResult {
-  verdict: string;
-  confidence: number;
-  summary: string;
-  corrections: string[];
-  sources: VerificationSource[];
+  verdict: string;
+  confidence: number;
+  summary: string;
+  corrections: string[];
+  sources: VerificationSource[];
 }
 
 const VERIFY_SYSTEM_PROMPT = `You are an independent scientific fact-checker. You will receive a JSON analysis of a product's ingredients and marketing claims produced by another AI. Your job: use Google Search to verify the key claims (ingredient hazard levels, regulatory status, alleged greenwashing) against reputable sources (EWG, EU CosIng, FDA, EFSA, REACH, peer-reviewed literature).
 
 Return ONLY a raw JSON object (no markdown, no code fences) with this exact shape:
 {
-  "verdict": "Confirmed" | "Mostly confirmed" | "Partially confirmed" | "Disputed" | "Unverifiable",
-  "confidence": <integer 0-100>,
-  "summary": "<2-4 sentence overall fact-check summary, in the SAME language used in the original analysis values>",
-  "corrections": ["<short bullet describing any inaccuracies or missing nuance, same language>"]
+  "verdict": "Confirmed" | "Mostly confirmed" | "Partially confirmed" | "Disputed" | "Unverifiable",
+  "confidence": <integer 0-100>,
+  "summary": "<2-4 sentence overall fact-check summary, in the SAME language used in the original analysis values>",
+  "corrections": ["<short bullet describing any inaccuracies or missing nuance, same language>"]
 }
 
-Be strict and concise. If a hazard score seems exaggerated or understatedsources,
-  };
+Be strict and concise. If a hazard score seems exaggerated or understated, say so in corrections.`;
+
+export async function verifyAnalysisWithSearch(
+  analysis: AnalysisResult,
+): Promise<VerificationResult> {
+  const body = {
+    system_instruction: { parts: [{ text: VERIFY_SYSTEM_PROMPT }] },
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              "Fact-check the following product analysis JSON and return the verification JSON as specified:\n\n" +
+              JSON.stringify(analysis, null, 2),
+          },
+        ],
+      },
+    ],
+    tools: [{ google_search: {} }],
+    generationConfig: { temperature: 0.2 },
+  };
+
+  const res = await fetch(GEMINI_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gemini verification error (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  const parts = data?.candidates?.[0]?.content?.parts ?? [];
+  const text: string = parts.map((p: { text?: string }) => p.text ?? "").join("");
+
+  const grounding = data?.candidates?.[0]?.groundingMetadata;
+  const chunks: Array<{ web?: { uri?: string; title?: string } }> =
+    grounding?.groundingChunks ?? [];
+  const sources: VerificationSource[] = chunks
+    .map((c) => ({ title: c.web?.title ?? "", uri: c.web?.uri ?? "" }))
+    .filter((s) => s.uri);
+
+  let parsed: Partial<VerificationResult> = {};
+  try {
+    parsed = extractJson(text) as Partial<VerificationResult>;
+  } catch {
+    parsed = {
+      verdict: "Unverifiable",
+      confidence: 0,
+      summary: text || "No verification text returned.",
+      corrections: [],
+    };
+  }
+
+  return {
+    verdict: parsed.verdict ?? "Unverifiable",
+    confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0,
+    summary: parsed.summary ?? "",
+    corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [],
+    sources,
+  };
 }
