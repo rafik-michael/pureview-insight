@@ -114,6 +114,11 @@ export async function analyzeProductIngredients(imageBase64: string): Promise<st
   return textResult;
 }
 
+// Alias function to support App.tsx calling the old function name
+export async function analyzeProductImage(imageBase64: string): Promise<string> {
+  return analyzeProductIngredients(imageBase64);
+}
+
 // Helper function required by App.tsx to convert file objects to base64 strings
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -121,7 +126,6 @@ export function fileToBase64(file: File): Promise<string> {
     reader.readAsDataURL(file);
     reader.onload = () => {
       const base64String = reader.result as string;
-      // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
       const cleanBase64 = base64String.split(',')[1];
       resolve(cleanBase64);
     };
