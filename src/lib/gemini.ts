@@ -1,10 +1,10 @@
 // Gemini API client for NovaApp product analysis.
 // Optimized for secure rotating environment variables on Vercel with auto-retry.
-// Features: Next-Gen Vision Analysis via Gemini 3.5 Flash & Dynamic language matching.
+// Features: Dynamic language matching & Stable Vision Analysis via Gemini 2.5 Flash.
 // Pure English Version.
 
-// Setting the core model to the absolute latest Gemini 3.5 Flash
-const GEMINI_MODEL = "gemini-3.5-flash";
+// Using the officially supported production vision model to ensure stable image processing
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 // Helper function to pause execution (sleep) for a given number of milliseconds
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -109,7 +109,7 @@ export async function analyzeProductImage(imageBase64: string): Promise<string> 
 
 // Dummy function to satisfy the old verifyAnalysisWithSearch export without breaking the build
 export async function verifyAnalysisWithSearch(analysisText: string): Promise<any> {
-  return { success: true, message: "Vision mode uses Gemini 3.5 Flash internal scientific knowledge bank." };
+  return { success: true, message: "Vision mode uses Gemini stable scientific knowledge bank." };
 }
 
 // Helper function required by App.tsx to convert file objects to base64 strings
