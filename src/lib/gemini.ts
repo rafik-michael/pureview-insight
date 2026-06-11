@@ -8,7 +8,8 @@ const key3 = import.meta.env.VITE_GEMINI_KEY_3;
 
 const keys = [key1, key2, key3].filter(Boolean);
 const GEMINI_MODEL = "gemini-3.5-flash";
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+const currentKey = keys [0];
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${currentKey}`;
 
 const SYSTEM_PROMPT = `Role & Identity
 
