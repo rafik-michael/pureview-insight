@@ -1,17 +1,16 @@
 // Gemini API client for NovaApp product analysis.
 // Optimized for secure rotating environment variables on Vercel.
 
-const GEMINI_MODEL = "gemini-3.5-flash";
+const GEMINI_MODEL = "gemini-2.5-flash";
 
 // دالة ذكية لتجربة المفاتيح الثلاثة بالتناوب عند حدوث ضغط أو انتهاء الحصة
 async function fetchWithKeyRotation(body: any): Promise<Response> {
   // جلب المفاتيح السرية من بيئة التشغيل الآمنة في فيرسيل
+ // جلب المفتاح الرئيسي المباشر والمفتاح الاحتياطي إن وجد
   const keys = [
-    import.meta.env.VITE_GEMINI_KEY_1,
-    import.meta.env.VITE_GEMINI_KEY_2,
-    import.meta.env.VITE_GEMINI_KEY_3
-  ].filter(Boolean); // ترشيح المفاتيح الموجودة فقط
-
+    import.meta.env.VITE_GEMINI_API_KEY,
+    import.meta.env.VITE_GEMINI_KEY_1
+  ].filter(Boolean);
   if (keys.length === 0) {
     throw new Error("No Gemini API keys found in Environment Variables.");
   }
