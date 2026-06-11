@@ -2,9 +2,11 @@
 // NOTE: The API key is included here per the user's explicit request so the
 // site remains fully static (deployable to GitHub Pages / Vercel / Netlify).
 
-const GEMINI_API_KEY_1 = "AQ.Ab8RN6I49BUobZ10btxChKYNTBbngA2jxDWgpPrn51VoGC-Lkg";
-const GEMINI_API_KEY_2 = "AQ.Ab8RN6Kg9RsFX68bzF26zdSNP24kqHAH0gAGOM8JfvY4Uin95g";
-const GEMINI_API_KEY_3 = "AQ.Ab8RN6KusmA8YKTu44nkmmY9LEpb5WoIOwJsgDrK1T8XELZvRg";
+const key1 = import.meta.env.VITE_GEMINI_KEY_1;
+const key1 = import.meta.env.VITE_GEMINI_KEY_2;
+const key1 = import.meta.env.VITE_GEMINI_KEY_3;
+
+const keys = [key1, key2, key3].filter(Boolean);
 const GEMINI_MODEL = "gemini-3.5-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
